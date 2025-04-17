@@ -23,7 +23,7 @@ export default function LoginScreen() {
       console.log('Signing in with:', username, password);
       setIsSubmitting(true);
       await signIn(username, password);
-      router.replace('/(tabs)');
+      router.replace('/tabs');
     } catch (error) {
       console.error('Login error:', error);
     } finally {
@@ -105,10 +105,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   title: {
-    fontSize: 36,
+    fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 10,
     textAlign: 'center',
+    marginBottom: 20,
   },
   subtitle: {
     fontSize: 18,

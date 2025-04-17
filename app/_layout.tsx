@@ -28,14 +28,14 @@ function RootLayoutNav() {
       router.replace('/(auth)/login');
     } else if (token && inAuthGroup) {
       // Redirect to the home page if already authenticated
-      router.replace('/(tabs)');
+      router.replace('/tabs');
     }
   }, [token, segments, isLoading]);
 
   return (
     <Stack>
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="tabs" options={{ headerShown: false }} />
       <Stack.Screen name="+not-found" />
     </Stack>
   );

@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
 import { Alert } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface User {
   id: string;
@@ -36,8 +37,9 @@ interface LoginResponse {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Update API URL to use IP address instead of localhost for mobile devices
-const API_BASE_URL = 'http://localhost:8000';
-// const API_BASE_URL = 'http://10.0.2.2:8000'; // Use 10.0.2.2 for Android emulator
+// const API_BASE_URL = 'http://localhost:8000';
+// const API_BASE_URL = 'http://10.0.2.2:4000'; // Use 10.0.2.2 for Android emulator
+const API_BASE_URL = 'https://2595-2603-8000-ba00-2aae-19d0-bb4a-f0eb-4b8f.ngrok-free.app'; // Use 10.0.2.2 for Android emulator
 // For iOS simulator, use your computer's local IP address if needed
 // For physical devices, use your development machine's actual local network IP
 
@@ -105,7 +107,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       // Format user data to match our User interface
       const formattedUser: User = {
-        id: userData.id,
+        id: userData._id,
         email: userData.email,
         username: userData.username,
         firstName: userData.first_name,
