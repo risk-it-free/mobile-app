@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, ScrollView, TouchableOpacity, Alert, Image, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, ScrollView, TouchableOpacity, Alert, Image, ActivityIndicator, Animated, ToastAndroid, Platform } from 'react-native';
 import { ThemedText } from '../../../components/ThemedText';
 import { ThemedView } from '../../../components/ThemedView';
 import { useAuth } from '../../../hooks/useAuth';
 import { useLocalSearchParams, router } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { config } from '../../../config';
+import * as Speech from 'expo-speech';
 
 // Define interface for SpaceLog
 interface SpaceLog {
@@ -40,6 +41,12 @@ export default function LogDetailScreen() {
   const { token } = useAuth();
   const [log, setLog] = useState<SpaceLog | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [preparingSpeech, setPreparingSpeech] = useState(false);
+  const speakerPulse = React.useRef(new Animated.Value(1)).current;
+  const [toastVisible, setToastVisible] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const toastTimeout = React.useRef<NodeJS.Timeout | null>(null);
   
   const API_BASE_URL = config.backendApiUrl;
   
@@ -93,6 +100,177 @@ export default function LogDetailScreen() {
     return '#F44336'; // Red for low safety
   };
 
+  // Generate summary text for speech
+  const generateSpeechSummary = (log: SpaceLog) => {
+    if (!log) return '';
+    
+    // let summary = `Safety assessment from ${formatDate(log.created_at)}. `;
+    
+    // Add safety score
+    let summary = `The safety score is ${Math.round(log.score)} out of 100. `;
+    
+    // Add safety assessment
+    if (log.score >= 80) {
+      summary += 'This space is generally safe with minimal hazards. ';
+    } else if (log.score >= 60) {
+      summary += 'This space has some safety concerns that should be addressed. ';
+    } else {
+      summary += 'This space has significant safety hazards that require immediate attention. ';
+    }
+    
+    // Add hazards
+    const highPriorityHazards = log.hazard_list.high_priority || [];
+    const mediumPriorityHazards = log.hazard_list.medium_priority || [];
+    const lowPriorityHazards = log.hazard_list.low_priority || [];
+    
+    if (highPriorityHazards.length > 0) {
+      summary += `High priority hazards include: ${highPriorityHazards.join(', ')}. `;
+    }
+    
+    if (mediumPriorityHazards.length > 0) {
+      summary += `Medium priority hazards include: ${mediumPriorityHazards.join(', ')}. `;
+    }
+    
+    if (lowPriorityHazards.length > 0) {
+      summary += `Low priority hazards include: ${lowPriorityHazards.join(', ')}. `;
+    }
+    
+    if (highPriorityHazards.length === 0 && mediumPriorityHazards.length === 0 && lowPriorityHazards.length === 0) {
+      summary += 'No hazards were identified in this space. ';
+    }
+    
+    // Add recommendations
+    if (log.recommendations && log.recommendations.length > 0) {
+      summary += `Recommendations: ${log.recommendations.join(', ')}. `;
+    }
+    
+    // Add comments if available
+    if (log.comments) {
+      summary += `Notes: ${log.comments}. `;
+    }
+    
+    return summary;
+  };
+  
+  // Show toast message
+  const showToast = (message: string) => {
+    if (Platform.OS === 'android') {
+      ToastAndroid.show(message, ToastAndroid.SHORT);
+    } else {
+      // For iOS, we use a custom toast-like UI
+      if (toastTimeout.current) {
+        clearTimeout(toastTimeout.current);
+      }
+      setToastMessage(message);
+      setToastVisible(true);
+      
+      toastTimeout.current = setTimeout(() => {
+        setToastVisible(false);
+      }, 2000);
+    }
+  };
+  
+  // Cancel any existing speech
+  const stopSpeaking = () => {
+    if (isSpeaking) {
+      Speech.stop();
+      setIsSpeaking(false);
+      
+      // Reset animation
+      Animated.timing(speakerPulse, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true
+      }).start();
+    }
+  };
+  
+  // Handle component unmount or navigation
+  useEffect(() => {
+    return () => {
+      stopSpeaking();
+      
+      if (toastTimeout.current) {
+        clearTimeout(toastTimeout.current);
+      }
+    };
+  }, []);
+  
+  // Handle speech
+  const handleSpeak = () => {
+    if (!log) return;
+    
+    if (isSpeaking) {
+      stopSpeaking();
+      showToast('Speech stopped');
+    } else {
+      setPreparingSpeech(true);
+      const speechText = generateSpeechSummary(log);
+      
+      // Check if speech is available
+      Speech.isSpeakingAsync()
+        .then(isSpeaking => {
+          if (isSpeaking) {
+            Speech.stop();
+          }
+          
+          setIsSpeaking(true);
+          setPreparingSpeech(false);
+          showToast('Reading safety assessment...');
+          
+          // Start pulse animation
+          const pulseAnimation = Animated.loop(
+            Animated.sequence([
+              Animated.timing(speakerPulse, {
+                toValue: 1.2,
+                duration: 800,
+                useNativeDriver: true
+              }),
+              Animated.timing(speakerPulse, {
+                toValue: 1,
+                duration: 800,
+                useNativeDriver: true
+              })
+            ])
+          );
+          
+          pulseAnimation.start();
+          
+          Speech.speak(speechText, {
+            language: 'en',
+            rate: 0.9,
+            onDone: () => {
+              setIsSpeaking(false);
+              showToast('Finished reading');
+              pulseAnimation.stop();
+              Animated.timing(speakerPulse, {
+                toValue: 1,
+                duration: 300,
+                useNativeDriver: true
+              }).start();
+            },
+            onError: (error) => {
+              setIsSpeaking(false);
+              setPreparingSpeech(false);
+              showToast('Error reading assessment');
+              pulseAnimation.stop();
+              Animated.timing(speakerPulse, {
+                toValue: 1,
+                duration: 300,
+                useNativeDriver: true
+              }).start();
+              console.error('Speech error:', error);
+            }
+          });
+        })
+        .catch(error => {
+          setPreparingSpeech(false);
+          showToast('Error initializing speech');
+          console.error('Speech initialization error:', error);
+        });
+    }
+  };
+
   if (loading) {
     return (
       <ThemedView style={styles.container}>
@@ -117,6 +295,13 @@ export default function LogDetailScreen() {
 
   return (
     <ThemedView style={styles.container}>
+      {/* iOS custom toast */}
+      {Platform.OS === 'ios' && toastVisible && (
+        <View style={styles.iosToast}>
+          <ThemedText style={styles.iosToastText}>{toastMessage}</ThemedText>
+        </View>
+      )}
+      
       {/* <View style={headerStyles.header}>
         <TouchableOpacity 
           style={headerStyles.backButton}
@@ -133,8 +318,37 @@ export default function LogDetailScreen() {
         contentContainerStyle={styles.scrollContent}
       >
         <View style={styles.header}>
-          <ThemedText style={styles.title}>Safety Assessment</ThemedText>
-          <ThemedText style={styles.date}>{formatDate(log.created_at)}</ThemedText>
+          {/* <ThemedText style={styles.title}>Safety Assessment</ThemedText> */}
+          <View style={styles.dateContainer}>
+            <ThemedText style={styles.date}>{formatDate(log.created_at)}</ThemedText>
+            <View style={styles.speakerContainer}>
+              <TouchableOpacity 
+                style={[styles.speakerButton, isSpeaking && styles.speakerButtonActive]} 
+                onPress={handleSpeak}
+                activeOpacity={0.7}
+                disabled={preparingSpeech}
+                accessibilityLabel={isSpeaking ? "Stop reading assessment" : "Read assessment aloud"}
+                accessibilityRole="button"
+                accessibilityState={{ busy: preparingSpeech, selected: isSpeaking }}
+                accessibilityHint="Double tap to have the safety assessment read aloud"
+              >
+                {preparingSpeech ? (
+                  <ActivityIndicator size="small" color="#007AFF" />
+                ) : (
+                  <Animated.View style={{ transform: [{ scale: speakerPulse }] }}>
+                    <MaterialIcons 
+                      name={isSpeaking ? "volume-up" : "volume-off"} 
+                      size={24} 
+                      color={isSpeaking ? "#4CAF50" : "#007AFF"} 
+                    />
+                  </Animated.View>
+                )}
+              </TouchableOpacity>
+              {!isSpeaking && !preparingSpeech && (
+                <ThemedText style={styles.speakerHint}>Listen</ThemedText>
+              )}
+            </View>
+          </View>
         </View>
         
         {log.image_data && (
@@ -312,9 +526,32 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 4,
   },
+  dateContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
   date: {
     fontSize: 14,
     color: '#666',
+  },
+  speakerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  speakerButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 122, 255, 0.1)',
+  },
+  speakerButtonActive: {
+    backgroundColor: 'rgba(76, 175, 80, 0.1)',
+  },
+  speakerHint: {
+    fontSize: 12,
+    color: '#007AFF',
+    marginLeft: 4,
   },
   image: {
     width: '100%',
@@ -429,6 +666,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#999',
     marginBottom: 4,
+  },
+  iosToast: {
+    position: 'absolute',
+    bottom: 100,
+    left: 20,
+    right: 20,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    borderRadius: 10,
+    padding: 10,
+    zIndex: 1000,
+    alignItems: 'center',
+  },
+  iosToastText: {
+    color: 'white',
+    fontSize: 14,
+    textAlign: 'center',
   },
 });
 
