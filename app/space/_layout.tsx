@@ -3,12 +3,12 @@ import React from 'react';
 
 export default function SpaceLayout() {
   return (
-    <Stack screenOptions={{ headerShown: false }}>
+    <Stack screenOptions={{ headerShown: true, title: 'Spaces' }}>
       <Stack.Screen 
         name="index" 
         options={{ 
           title: 'Spaces',
-          headerShown: false,
+          headerShown: true,
         }}
       />
       <Stack.Screen 
