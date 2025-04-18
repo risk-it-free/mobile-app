@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { StyleSheet, View, ScrollView, TouchableOpacity, Alert, Image, ActivityIndicator, RefreshControl } from 'react-native';
+import { StyleSheet, View, ScrollView, TouchableOpacity, Alert, Image, ActivityIndicator, RefreshControl, Modal, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import { ThemedText } from '../../components/ThemedText';
 import { ThemedView } from '../../components/ThemedView';
 import { useAuth } from '../../hooks/useAuth';
@@ -11,8 +11,17 @@ interface Space {
   _id: string;
   space_name: string;
   description: string;
+  patient_ids?: string[];
   created_at: string;
   updated_at: string;
+}
+
+interface Patient {
+  _id: string;
+  patient_name: string;
+  patient_condition: string;
+  patient_age: number;
+  medical_history?: string;
 }
 
 interface SpaceLog {
@@ -49,8 +58,51 @@ export default function SpaceDetailsScreen() {
   const [logs, setLogs] = useState<SpaceLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [isEditModalVisible, setIsEditModalVisible] = useState(false);
+  const [spaceName, setSpaceName] = useState('');
+  const [spaceDescription, setSpaceDescription] = useState('');
+  const [selectedPatientIds, setSelectedPatientIds] = useState<string[]>([]);
+  const [spacePatients, setSpacePatients] = useState<Patient[]>([]);
+  const [allPatients, setAllPatients] = useState<Patient[]>([]);
   
   const API_BASE_URL = 'https://2595-2603-8000-ba00-2aae-19d0-bb4a-f0eb-4b8f.ngrok-free.app';
+  
+  // Fetch all patients and filter based on provided space data
+  const fetchPatients = useCallback(async (spaceData?: Space) => {
+    if (!token) return;
+    
+    try {
+      // Fetch all patients
+      const allPatientsResponse = await fetch(`${API_BASE_URL}/patient`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!allPatientsResponse.ok) {
+        throw new Error('Failed to fetch patients');
+      }
+      
+      const allPatientsData = await allPatientsResponse.json();
+      setAllPatients(allPatientsData);
+      
+      // Use the passed spaceData if available, otherwise use the state
+      const currentSpace = spaceData || space;
+      
+      // Filter space patients if we have space data
+      if (currentSpace && currentSpace.patient_ids && currentSpace.patient_ids.length > 0) {
+        const spacePatientsList = allPatientsData.filter((patient: Patient) => 
+          currentSpace.patient_ids?.includes(patient._id)
+        );
+        setSpacePatients(spacePatientsList);
+      } else {
+        setSpacePatients([]);
+      }
+    } catch (error) {
+      console.error('Error fetching patients:', error);
+      Alert.alert('Error', 'Failed to load patients. Please try again later.');
+    }
+  }, [token, API_BASE_URL]); // Removed 'space' from the dependency array to break the circular dependency
   
   const fetchSpaceDetails = useCallback(async () => {
     if (!token || !id) return;
@@ -71,6 +123,9 @@ export default function SpaceDetailsScreen() {
       
       const spaceData = await spaceResponse.json();
       setSpace(spaceData);
+      setSpaceName(spaceData.space_name);
+      setSpaceDescription(spaceData.description || '');
+      setSelectedPatientIds(spaceData.patient_ids || []);
       
       // Fetch space logs
       const logsResponse = await fetch(`${API_BASE_URL}/space/logs/space/${id}`, {
@@ -85,6 +140,9 @@ export default function SpaceDetailsScreen() {
       
       const logsData = await logsResponse.json();
       setLogs(logsData);
+      
+      // Fetch patients with the newly fetched space data
+      await fetchPatients(spaceData);
     } catch (error) {
       console.error('Error fetching space details:', error);
       Alert.alert('Error', 'Failed to load space details. Please try again later.');
@@ -92,8 +150,9 @@ export default function SpaceDetailsScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [id, token, API_BASE_URL]);
+  }, [id, token, API_BASE_URL, fetchPatients]);
   
+  // Only fetch space details once on component mount
   useEffect(() => {
     fetchSpaceDetails();
   }, [fetchSpaceDetails]);
@@ -102,6 +161,110 @@ export default function SpaceDetailsScreen() {
     setRefreshing(true);
     fetchSpaceDetails();
   }, [fetchSpaceDetails]);
+  
+  const handleEditSpace = () => {
+    if (space) {
+      // Update form values
+      setSpaceName(space.space_name);
+      setSpaceDescription(space.description || '');
+      setSelectedPatientIds(space.patient_ids || []);
+      
+      // No need to fetch patients again here, we can use the already fetched data
+      // This was causing additional re-renders
+      setIsEditModalVisible(true);
+    }
+  };
+  
+  const handleSaveSpace = async () => {
+    if (!token || !id || !spaceName.trim()) {
+      Alert.alert('Error', 'Space name is required');
+      return;
+    }
+    
+    try {
+      const spaceData = {
+        space_name: spaceName.trim(),
+        description: spaceDescription.trim() || undefined,
+        patient_ids: selectedPatientIds
+      };
+      
+      const response = await fetch(`${API_BASE_URL}/space/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(spaceData)
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to update space');
+      }
+      
+      // Close modal and refresh space details
+      setIsEditModalVisible(false);
+      fetchSpaceDetails();
+      Alert.alert('Success', 'Space updated successfully');
+    } catch (error) {
+      console.error('Error updating space:', error);
+      Alert.alert('Error', 'Failed to update space. Please try again later.');
+    }
+  };
+  
+  const handleDeleteSpace = async () => {
+    if (!token || !id) {
+      Alert.alert('Error', 'Authorization required');
+      return;
+    }
+    
+    Alert.alert(
+      "Confirm Delete",
+      "Are you sure you want to delete this space? This action cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Delete", 
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const response = await fetch(`${API_BASE_URL}/space/${id}`, {
+                method: 'DELETE',
+                headers: {
+                  'Authorization': `Bearer ${token}`
+                }
+              });
+              
+              if (!response.ok) {
+                throw new Error('Failed to delete space');
+              }
+              
+              // Close modal and navigate back to main page
+              setIsEditModalVisible(false);
+              router.replace('/tabs');
+              Alert.alert('Success', 'Space deleted successfully');
+            } catch (error) {
+              console.error('Error deleting space:', error);
+              Alert.alert('Error', 'Failed to delete space. Please try again later.');
+            }
+          }
+        }
+      ]
+    );
+  };
+  
+  const togglePatientSelection = (patientId: string) => {
+    setSelectedPatientIds(prevSelected => {
+      if (prevSelected.includes(patientId)) {
+        return prevSelected.filter(id => id !== patientId);
+      } else {
+        return [...prevSelected, patientId];
+      }
+    });
+  };
+  
+  const isPatientSelected = (patientId: string) => {
+    return selectedPatientIds.includes(patientId);
+  };
   
   const handleAddAssessment = () => {
     if (space) {
@@ -143,16 +306,6 @@ export default function SpaceDetailsScreen() {
   if (loading && !refreshing) {
     return (
       <ThemedView style={styles.container}>
-        {/* <View style={headerStyles.header}>
-          <TouchableOpacity 
-            style={headerStyles.backButton}
-            onPress={() => router.back()}
-          >
-            <MaterialIcons name="arrow-back" size={24} color="#007AFF" />
-          </TouchableOpacity>
-          <ThemedText style={headerStyles.title}>Loading...</ThemedText>
-          <View style={headerStyles.rightPlaceholder} />
-        </View> */}
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#007AFF" />
           <ThemedText style={styles.loadingText}>Loading space details...</ThemedText>
@@ -177,9 +330,36 @@ export default function SpaceDetailsScreen() {
               <MaterialIcons name="room" size={32} color="#007AFF" />
             </View>
             <View style={styles.spaceHeaderDetails}>
-              <ThemedText style={styles.spaceName}>{space.space_name}</ThemedText>
+              <View style={styles.spaceNameRow}>
+                <ThemedText style={styles.spaceName}>{space.space_name}</ThemedText>
+                <TouchableOpacity onPress={handleEditSpace}>
+                  <MaterialIcons name="edit" size={20} color="#007AFF" />
+                </TouchableOpacity>
+              </View>
               <ThemedText style={styles.spaceDescription}>{space.description || 'No description'}</ThemedText>
               <ThemedText style={styles.spaceDate}>Created: {formatDate(space.created_at)}</ThemedText>
+              
+              {/* Display patient names in the space card */}
+              {spacePatients.length > 0 && (
+                <View style={styles.spacePatientContainer}>
+                  <View style={styles.spacePatientHeader}>
+                    <MaterialIcons name="people" size={14} color="#007AFF" />
+                    <ThemedText style={styles.spacePatientLabel}>
+                      Members: {spacePatients.length}
+                    </ThemedText>
+                  </View>
+                  <View style={styles.spacePatientList}>
+                    {spacePatients.map((patient, index) => (
+                      <View key={patient._id} style={styles.spacePatientBadge}>
+                        <ThemedText style={styles.spacePatientName}>
+                          {patient.patient_name}
+                          {index < spacePatients.length - 1 ? ", " : ""}
+                        </ThemedText>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              )}
             </View>
           </View>
         )}
@@ -272,6 +452,114 @@ export default function SpaceDetailsScreen() {
       >
         <MaterialIcons name="add-a-photo" size={24} color="#FFFFFF" />
       </TouchableOpacity>
+      
+      {/* Edit Space Modal with integrated patient management */}
+      <Modal
+        visible={isEditModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setIsEditModalVisible(false)}
+      >
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <ThemedText style={styles.modalTitle}>Edit Space</ThemedText>
+              <TouchableOpacity onPress={() => setIsEditModalVisible(false)}>
+                <MaterialIcons name="close" size={24} color="#999" />
+              </TouchableOpacity>
+            </View>
+            
+            <ScrollView style={styles.modalScrollContent} showsVerticalScrollIndicator={false}>
+              <View style={styles.inputContainer}>
+                <ThemedText style={styles.inputLabel}>Name*</ThemedText>
+                <TextInput
+                  style={styles.input}
+                  value={spaceName}
+                  onChangeText={setSpaceName}
+                  placeholder="Enter space name"
+                  placeholderTextColor="#999"
+                />
+              </View>
+              
+              <View style={styles.inputContainer}>
+                <ThemedText style={styles.inputLabel}>Description</ThemedText>
+                <TextInput
+                  style={[styles.input, styles.notesInput]}
+                  value={spaceDescription}
+                  onChangeText={setSpaceDescription}
+                  placeholder="Enter space description"
+                  placeholderTextColor="#999"
+                  multiline={true}
+                  numberOfLines={3}
+                />
+              </View>
+              
+              {/* Patient selection section */}
+              <View style={styles.inputContainer}>
+                <ThemedText style={styles.inputLabel}>Care Circle</ThemedText>
+                <ThemedText style={styles.inputHelpText}>Select members who walk into this space:</ThemedText>
+                
+                {allPatients.length === 0 ? (
+                  <ThemedText style={styles.noContentText}>No members available</ThemedText>
+                ) : (
+                  <View style={styles.patientsSelectionContainer}>
+                    {allPatients.map((patient) => (
+                      <TouchableOpacity 
+                        key={patient._id} 
+                        style={[
+                          styles.patientSelectCard,
+                          isPatientSelected(patient._id) && styles.patientSelectCardActive
+                        ]}
+                        onPress={() => togglePatientSelection(patient._id)}
+                      >
+                        <View style={styles.patientSelectInfo}>
+                          <MaterialIcons 
+                            name="person" 
+                            size={20} 
+                            color={isPatientSelected(patient._id) ? "#FFFFFF" : "#666666"} 
+                          />
+                          <ThemedText 
+                            style={[
+                              styles.patientSelectName,
+                              isPatientSelected(patient._id) && styles.patientSelectNameActive
+                            ]}
+                          >
+                            {patient.patient_name}
+                          </ThemedText>
+                        </View>
+                        <MaterialIcons 
+                          name={isPatientSelected(patient._id) ? "check-circle" : "radio-button-unchecked"} 
+                          size={22} 
+                          color={isPatientSelected(patient._id) ? "#FFFFFF" : "#CCCCCC"} 
+                        />
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+              </View>
+              <View style={styles.buttonContainer}>
+                <TouchableOpacity 
+                  style={styles.deleteButton}
+                  onPress={handleDeleteSpace}
+                >
+                  <ThemedText style={styles.deleteButtonText}>Delete Space</ThemedText>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.saveButton}
+                  onPress={handleSaveSpace}
+                >
+                  <ThemedText style={styles.saveButtonText}>Save Changes</ThemedText>
+                </TouchableOpacity>
+              </View>
+              
+              <View style={styles.modalBottomPadding}></View>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </ThemedView>
   );
 }
@@ -311,10 +599,15 @@ const styles = StyleSheet.create({
   spaceHeaderDetails: {
     flex: 1,
   },
+  spaceNameRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
   spaceName: {
     fontSize: 20,
     fontWeight: 'bold',
-    marginBottom: 4,
   },
   spaceDescription: {
     fontSize: 14,
@@ -324,6 +617,32 @@ const styles = StyleSheet.create({
   spaceDate: {
     fontSize: 12,
     color: '#888',
+    marginBottom: 8,
+  },
+  spacePatientContainer: {
+    marginTop: 4,
+  },
+  spacePatientHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  spacePatientLabel: {
+    fontSize: 12,
+    color: '#007AFF',
+    fontWeight: 'bold',
+    marginLeft: 4,
+  },
+  spacePatientList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  spacePatientBadge: {
+    marginRight: 2,
+  },
+  spacePatientName: {
+    fontSize: 12,
+    color: '#555',
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -341,6 +660,7 @@ const styles = StyleSheet.create({
     padding: 40,
     backgroundColor: '#F8F8F8',
     borderRadius: 12,
+    marginBottom: 20,
   },
   emptyStateText: {
     textAlign: 'center',
@@ -459,6 +779,180 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 3,
     elevation: 5,
+  },
+  patientsList: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 5,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  patientCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  patientInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  patientIconContainer: {
+    backgroundColor: 'rgba(0, 122, 255, 0.1)',
+    padding: 8,
+    borderRadius: 20,
+    marginRight: 12,
+  },
+  patientDetails: {
+    flex: 1,
+  },
+  patientName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 2,
+  },
+  patientSubInfo: {
+    fontSize: 12,
+    color: '#666',
+  },
+  deleteIcon: {
+    padding: 5,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 15,
+    padding: 20,
+    width: '90%',
+    maxHeight: '80%',
+  },
+  modalScrollContent: {
+    flexGrow: 0,
+  },
+  modalBottomPadding: {
+    height: 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  inputContainer: {
+    marginBottom: 15,
+  },
+  inputLabel: {
+    fontSize: 14,
+    marginBottom: 5,
+    color: '#666',
+    fontWeight: 'bold',
+  },
+  inputHelpText: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 10,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#DDD',
+    borderRadius: 8,
+    padding: 10,
+    fontSize: 16,
+    backgroundColor: '#F9F9F9',
+  },
+  notesInput: {
+    height: 80,
+    textAlignVertical: 'top',
+  },
+  patientsSelectionContainer: {
+    backgroundColor: '#F9F9F9',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#DDD',
+    padding: 10,
+    marginBottom: 10,
+  },
+  patientSelectCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    marginVertical: 5,
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#EEEEEE',
+  },
+  patientSelectCardActive: {
+    backgroundColor: '#007AFF',
+    borderColor: '#007AFF',
+  },
+  patientSelectInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  patientSelectName: {
+    fontSize: 16,
+    marginLeft: 10,
+    color: '#333',
+  },
+  patientSelectNameActive: {
+    color: '#FFFFFF',
+  },
+  noContentText: {
+    textAlign: 'center',
+    color: '#999',
+    padding: 20,
+    fontStyle: 'italic',
+  },
+  buttonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    // marginTop: 20,
+  },
+  saveButton: {
+    width: '45%',
+    backgroundColor: '#28a745',
+    borderRadius: 8,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  saveButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  deleteButton: {
+    width: '45%',
+    backgroundColor: '#dc3545',
+    borderRadius: 8,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  deleteButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });
 

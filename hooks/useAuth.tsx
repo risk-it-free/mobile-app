@@ -9,6 +9,8 @@ interface User {
   firstName: string;
   lastName: string;
   username: string;
+  phoneNumber?: string;
+  emergencyContact?: string;
 }
 
 interface AuthContextType {
@@ -18,6 +20,7 @@ interface AuthContextType {
   signIn: (username: string, password: string) => Promise<void>;
   signUp: (userData: SignUpData) => Promise<void>;
   signOut: () => Promise<void>;
+  updateUserInfo: (userData: UpdateUserData) => Promise<void>;
 }
 
 interface SignUpData {
@@ -27,6 +30,14 @@ interface SignUpData {
   username: string;
   phoneNumber: string;
   password: string;
+}
+
+interface UpdateUserData {
+  email: string;
+  first_name?: string;
+  last_name?: string;
+  phone_number?: string;
+  emergency_contact?: string;
 }
 
 interface LoginResponse {
@@ -112,6 +123,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         username: userData.username,
         firstName: userData.first_name,
         lastName: userData.last_name,
+        phoneNumber: userData.phone_number,
+        emergencyContact: userData.emergency_contact,
       };
       
       // Store the token and user data
@@ -165,6 +178,48 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const updateUserInfo = async (userData: UpdateUserData) => {
+    if (!user || !token) {
+      throw new Error('User not authenticated');
+    }
+
+    try {
+      setIsLoading(true);
+      
+      const response = await fetch(`${API_BASE_URL}/user/${user.id}/update`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(userData),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Update failed');
+      }
+      
+      // Update local user data
+      const updatedUser: User = {
+        ...user,
+        email: userData.email,
+        firstName: userData.first_name || user.firstName,
+        lastName: userData.last_name || user.lastName,
+        phoneNumber: userData.phone_number,
+        emergencyContact: userData.emergency_contact,
+      };
+      
+      await SecureStore.setItemAsync('userData', JSON.stringify(updatedUser));
+      setUser(updatedUser);
+    } catch (error) {
+      console.error('Update user error:', error);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const signOut = async () => {
     try {
       setIsLoading(true);
@@ -180,7 +235,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ user, token, isLoading, signIn, signUp, signOut, updateUserInfo }}>
       {children}
     </AuthContext.Provider>
   );
