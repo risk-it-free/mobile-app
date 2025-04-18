@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, TouchableOpacity, Image, Alert, ActivityIndicator } from 'react-native';
 import { ThemedText } from '../../components/ThemedText';
 import { ThemedView } from '../../components/ThemedView';
@@ -9,13 +9,30 @@ import { useAuth } from '../../hooks/useAuth';
 import { config } from '../../config';
 
 export default function CaptureScreen() {
-  const { spaceId, spaceName } = useLocalSearchParams();
+  // Use local params to get the parameters
+  const localParams = useLocalSearchParams();
+  
+  // Try to get spaceId from multiple possible keys
+  const spaceId = 
+    localParams.spaceId || 
+    localParams.spaceid || 
+    localParams.space_id;
+  
+  const spaceName = localParams.spaceName || 'Space';
+  
   const { token } = useAuth();
-  const [image, setImage] = useState<string | null>(null);
+  const [imageUri, setImageUri] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   
   const API_BASE_URL = config.backendApiUrl;
   
+  // Debug the parameters
+  useEffect(() => {
+    console.log('Local Params:', JSON.stringify(localParams));
+    console.log('Space ID:', spaceId);
+    console.log('Space Name:', spaceName);
+  }, [localParams, spaceId, spaceName]);
+
   const pickImageFromGallery = async () => {
     // Request permission
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -29,11 +46,10 @@ export default function CaptureScreen() {
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: false,
       quality: 0.8,
-      base64: true,
     });
 
     if (!result.canceled && result.assets && result.assets[0]) {
-      setImage(result.assets[0].base64 || null);
+      setImageUri(result.assets[0].uri);
     }
   };
 
@@ -49,124 +65,107 @@ export default function CaptureScreen() {
     let result = await ImagePicker.launchCameraAsync({
       allowsEditing: false,
       quality: 0.8,
-      base64: true,
     });
 
     if (!result.canceled && result.assets && result.assets[0]) {
-      setImage(result.assets[0].base64 || null);
+      setImageUri(result.assets[0].uri);
     }
   };
 
   const uploadImage = async () => {
-    if (!image || !spaceId || !token) {
-      Alert.alert('Error', 'Missing image data or space information');
+    if (!imageUri) {
+      Alert.alert('Error', 'Please select or capture an image first');
+      return;
+    }
+    
+    if (!spaceId) {
+      Alert.alert(
+        'Missing Space ID', 
+        'No space ID was found. Do you want to continue with a test upload?',
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel'
+          },
+          {
+            text: 'Continue Anyway',
+            onPress: () => performUpload('test-space-123')
+          }
+        ]
+      );
+      return;
+    }
+    
+    if (!token) {
+      Alert.alert('Error', 'You are not authenticated. Please log in again.');
       return;
     }
 
+    performUpload(spaceId.toString());
+  };
+  
+  const performUpload = async (id: string) => {
     setUploading(true);
 
     try {
-      // This would normally be a real AI analysis, but for demo purposes
-      // we're just creating a random safety assessment
-      const mockAnalysis = generateMockAnalysis();
+      // Create a FormData object to hold the multipart form data
+      const formData = new FormData();
       
-      const payload = {
-        space_id: spaceId,
-        image_data: image,
-        score: mockAnalysis.score,
-        bounding_box_info: mockAnalysis.bounding_box_info,
-        recommendations: mockAnalysis.recommendations,
-        hazard_list: mockAnalysis.hazard_list,
-        comments: `Safety assessment for ${spaceName}`,
-      };
-
-      const response = await fetch(`${API_BASE_URL}/space/logs/create`, {
+      // Add the space_id as a string
+      formData.append('space_id', id);
+      
+      // Add the image file
+      // Get the file name from the URI
+      const fileName = imageUri!.split('/').pop() || 'image.jpg';
+      // Infer the MIME type (assuming it's a JPEG if we can't determine it)
+      const match = /\.(\w+)$/.exec(fileName);
+      const type = match ? `image/${match[1]}` : 'image/jpeg';
+      
+      // Append the image file to the form data
+      formData.append('image', {
+        uri: imageUri,
+        name: fileName,
+        type,
+      } as any);
+      
+      console.log("Uploading to:", `${API_BASE_URL}/space/logs/upload-image`);
+      console.log("Space ID being sent:", id);
+      
+      const response = await fetch(`${API_BASE_URL}/space/logs/upload-image`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          // Remove explicit Content-Type as it's set automatically by FormData
         },
-        body: JSON.stringify(payload)
+        body: formData,
       });
 
       if (!response.ok) {
-        throw new Error('Failed to upload image and create assessment');
+        const errorText = await response.text().catch(() => 'Unknown error');
+        console.error('Server error:', errorText);
+        throw new Error(`Failed to upload image: ${response.status} ${response.statusText}`);
       }
 
       // Success! Navigate back to the space page
       Alert.alert(
         'Success',
-        'Safety assessment created successfully!',
+        'Image uploaded successfully!',
         [
           { 
             text: 'OK', 
             onPress: () => {
-              // Navigate back to the space page
-              router.replace(`/space/${spaceId}`);
+              // Navigate back to the space page, ensuring spaceId is used properly
+              router.replace(id ? `/space/${id}` : '/');
             }
           }
         ]
       );
     } catch (error) {
       console.error('Error uploading image:', error);
-      Alert.alert('Error', 'Failed to upload image and create assessment. Please try again.');
+      Alert.alert('Error', 'Failed to upload image. Please try again.');
     } finally {
       setUploading(false);
     }
-  };
-
-  // Helper function to generate mock analysis data for demo purposes
-  const generateMockAnalysis = () => {
-    const score = Math.floor(Math.random() * 40) + 60; // Random score between 60-99
-    
-    const possibleHazards = {
-      high_priority: ['Exposed wiring', 'Wet floor without sign', 'Blocked emergency exit'],
-      medium_priority: ['Cluttered pathway', 'Poor lighting', 'Loose carpeting', 'Uneven flooring'],
-      low_priority: ['Dim lighting', 'Furniture placement', 'Cable management needed']
-    };
-    
-    const possibleRecommendations = [
-      'Move furniture to create wider pathways',
-      'Secure loose cables along walls',
-      'Install better lighting in dark areas',
-      'Add grab bars near stairs and in bathrooms',
-      'Remove trip hazards from walkways',
-      'Use non-slip mats in wet areas',
-      'Store frequently used items within easy reach',
-      'Consider motion-activated night lights'
-    ];
-    
-    // Randomly select hazards
-    const hazardList = {
-      high_priority: score < 70 ? [possibleHazards.high_priority[Math.floor(Math.random() * possibleHazards.high_priority.length)]] : [],
-      medium_priority: score < 85 ? [possibleHazards.medium_priority[Math.floor(Math.random() * possibleHazards.medium_priority.length)]] : [],
-      low_priority: [possibleHazards.low_priority[Math.floor(Math.random() * possibleHazards.low_priority.length)]]
-    };
-    
-    // Randomly select 2-4 recommendations
-    const recommendations: string[] = [];
-    const numRecommendations = Math.floor(Math.random() * 3) + 2; // 2-4
-    for (let i = 0; i < numRecommendations; i++) {
-      const rec = possibleRecommendations[Math.floor(Math.random() * possibleRecommendations.length)];
-      if (!recommendations.includes(rec)) {
-        recommendations.push(rec);
-      }
-    }
-    
-    return {
-      score,
-      bounding_box_info: {
-        objects: [
-          {
-            type: 'furniture',
-            confidence: 0.92,
-            bbox: [50, 80, 200, 300]
-          }
-        ]
-      },
-      recommendations,
-      hazard_list: hazardList
-    };
   };
 
   // Rendering logic based on state
@@ -176,20 +175,20 @@ export default function CaptureScreen() {
         <View style={styles.uploadingContainer}>
           <ActivityIndicator size="large" color="#007AFF" />
           <ThemedText style={styles.uploadingText}>
-            Analyzing image and creating safety assessment...
+            Analyzing image for your safety...
           </ThemedText>
         </View>
       </ThemedView>
     );
   }
 
-  if (image) {
+  if (imageUri) {
     return (
       <ThemedView style={styles.container}>
 
         <View style={styles.imageContainer}>
           <Image
-            source={{ uri: `data:image/jpeg;base64,${image}` }}
+            source={{ uri: imageUri }}
             style={styles.preview}
           />
           <ThemedText style={styles.previewText}>
@@ -200,7 +199,7 @@ export default function CaptureScreen() {
         <View style={styles.actionContainer}>
           <TouchableOpacity 
             style={[styles.button, { backgroundColor: '#F44336' }]}
-            onPress={() => setImage(null)}
+            onPress={() => setImageUri(null)}
           >
             <MaterialIcons name="close" size={20} color="#FFFFFF" />
             <ThemedText style={styles.buttonText}>Retake</ThemedText>
@@ -220,8 +219,6 @@ export default function CaptureScreen() {
 
   return (
     <ThemedView style={styles.container}>
-
-
       <View style={styles.uploadContainer}>
         <View style={styles.optionsHeader}>
           <MaterialIcons name="add-a-photo" size={40} color="#007AFF" />
@@ -229,7 +226,7 @@ export default function CaptureScreen() {
             Choose an option
           </ThemedText>
           <ThemedText style={styles.description}>
-            Select an image from your gallery or capture a new photo for AI safety assessment.
+            Select an image from your gallery or capture a new photo for upload.
           </ThemedText>
         </View>
         

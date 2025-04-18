@@ -45,7 +45,8 @@ export default function HomeScreen() {
     
     try {
       setIsLoading(true);
-      const response = await fetch(`${API_BASE_URL}/space/user/${user.id}`, {
+      console.log('fetchSpaces', user.id, token);
+      const response = await fetch(`${API_BASE_URL}/space/user`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -56,6 +57,7 @@ export default function HomeScreen() {
       }
       
       const data = await response.json();
+      console.log('data spaces', data);
       setSpaces(data);
     } catch (error) {
       console.error('Error fetching spaces:', error);
@@ -82,6 +84,7 @@ export default function HomeScreen() {
       }
       
       const data = await response.json();
+      console.log('data patients', data);
       setPatients(data);
     } catch (error) {
       console.error('Error fetching patients:', error);
@@ -302,9 +305,9 @@ export default function HomeScreen() {
             </View>
           ) : (
             <View style={styles.patientsList}>
-              {patients.map((patient) => (
+              {patients.map((patient, index) => (
                 <TouchableOpacity 
-                  key={patient._id} 
+                  key={index} 
                   style={styles.patientCard}
                   onPress={() => handleEditPatient(patient)}
                 >

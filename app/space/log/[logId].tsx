@@ -13,14 +13,9 @@ interface SpaceLog {
   _id: string;
   space_id: string;
   image_data: string;
+  image_bb: string;
   score: number;
-  bounding_box_info: {
-    objects: {
-      type: string;
-      confidence: number;
-      bbox: number[];
-    }[];
-  };
+  bounding_box_info: any;
   recommendations: string[];
   hazard_list: {
     high_priority: string[];
@@ -353,7 +348,7 @@ export default function LogDetailScreen() {
         
         {log.image_data && (
           <Image 
-            source={{ uri: `data:image/jpeg;base64,${log.image_data}` }}
+            source={{ uri: log.image_bb }}
             style={styles.image}
             resizeMode="cover"
           />

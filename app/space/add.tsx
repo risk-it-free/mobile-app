@@ -149,7 +149,6 @@ export default function AddSpaceScreen() {
         },
         body: JSON.stringify({
           space_name: spaceName,
-          user_id: user.id,
           description: description.trim() || undefined,
           patient_ids: selectedPatientIds.length > 0 ? selectedPatientIds : undefined
         }),

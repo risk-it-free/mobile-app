@@ -118,6 +118,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const userData = await userResponse.json();
       
       // Format user data to match our User interface
+      console.log('userData inside signIn', userData);
       const formattedUser: User = {
         id: userData._id,
         email: userData.email,
@@ -187,7 +188,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       setIsLoading(true);
       
-      const response = await fetch(`${API_BASE_URL}/user/${user.id}/update`, {
+      const response = await fetch(`${API_BASE_URL}/user/update`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

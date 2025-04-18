@@ -28,20 +28,11 @@ interface SpaceLog {
   _id: string;
   space_id: string;
   image_data: string;
+  image_bb: string;
   score: number;
-  bounding_box_info: {
-    objects: {
-      type: string;
-      confidence: number;
-      bbox: number[];
-    }[];
-  };
+  bounding_box_info: any;
   recommendations: string[];
-  hazard_list: {
-    high_priority: string[];
-    medium_priority: string[];
-    low_priority: string[];
-  };
+  hazard_list: any;
   comments: string;
   metadata: {
     analyzed_by: string;
@@ -122,6 +113,7 @@ export default function SpaceDetailsScreen() {
       }
       
       const spaceData = await spaceResponse.json();
+      spaceData.id = id;
       setSpace(spaceData);
       setSpaceName(spaceData.space_name);
       setSpaceDescription(spaceData.description || '');
@@ -403,7 +395,7 @@ export default function SpaceDetailsScreen() {
               
               {log.image_data && (
                 <Image 
-                  source={{ uri: `data:image/jpeg;base64,${log.image_data}` }}
+                  source={{ uri: log.image_bb }}
                   style={styles.logImage}
                   resizeMode="cover"
                 />
