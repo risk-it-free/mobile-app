@@ -5,6 +5,7 @@ import { ThemedView } from '../../components/ThemedView';
 import { useAuth } from '../../hooks/useAuth';
 import { useLocalSearchParams, Stack, router } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { config } from '../../config';
 
 // Define interfaces for data types
 interface Space {
@@ -49,7 +50,7 @@ export default function SpaceDetailsScreen() {
   const [logs, setLogs] = useState<SpaceLog[]>([]);
   const [loading, setLoading] = useState(true);
   
-  const API_BASE_URL = 'https://2595-2603-8000-ba00-2aae-19d0-bb4a-f0eb-4b8f.ngrok-free.app';
+  const API_BASE_URL = config.backendApiUrl;
   
   useEffect(() => {
     const fetchSpaceDetails = async () => {

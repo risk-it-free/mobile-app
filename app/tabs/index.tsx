@@ -6,6 +6,7 @@ import { ThemedView } from '../../components/ThemedView';
 import { useAuth } from '../../hooks/useAuth';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router } from 'expo-router';
+import { config } from '../../config';
 
 // Define interface for Space
 interface Space {
@@ -36,7 +37,7 @@ export default function HomeScreen() {
   const [patientAge, setPatientAge] = useState('');
   const [medicalHistory, setMedicalHistory] = useState('');
   
-  const API_BASE_URL = 'https://2595-2603-8000-ba00-2aae-19d0-bb4a-f0eb-4b8f.ngrok-free.app';
+  const API_BASE_URL = config.backendApiUrl;
   
   // Fetch spaces from API
   const fetchSpaces = async () => {

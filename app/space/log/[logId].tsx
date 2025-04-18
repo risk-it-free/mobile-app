@@ -5,6 +5,7 @@ import { ThemedView } from '../../../components/ThemedView';
 import { useAuth } from '../../../hooks/useAuth';
 import { useLocalSearchParams, router } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { config } from '../../../config';
 
 // Define interface for SpaceLog
 interface SpaceLog {
@@ -40,7 +41,7 @@ export default function LogDetailScreen() {
   const [log, setLog] = useState<SpaceLog | null>(null);
   const [loading, setLoading] = useState(true);
   
-  const API_BASE_URL = 'https://2595-2603-8000-ba00-2aae-19d0-bb4a-f0eb-4b8f.ngrok-free.app';
+  const API_BASE_URL = config.backendApiUrl;
   
   useEffect(() => {
     const fetchLogDetails = async () => {

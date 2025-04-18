@@ -2,6 +2,7 @@ import React, { createContext, useState, useContext, useEffect, ReactNode } from
 import { Alert } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { config } from '../config';
 
 interface User {
   id: string;
@@ -50,7 +51,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 // Update API URL to use IP address instead of localhost for mobile devices
 // const API_BASE_URL = 'http://localhost:8000';
 // const API_BASE_URL = 'http://10.0.2.2:4000'; // Use 10.0.2.2 for Android emulator
-const API_BASE_URL = 'https://2595-2603-8000-ba00-2aae-19d0-bb4a-f0eb-4b8f.ngrok-free.app'; // Use 10.0.2.2 for Android emulator
+const API_BASE_URL = config.backendApiUrl; // Use 10.0.2.2 for Android emulator
 // For iOS simulator, use your computer's local IP address if needed
 // For physical devices, use your development machine's actual local network IP
 

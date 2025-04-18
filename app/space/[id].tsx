@@ -5,7 +5,7 @@ import { ThemedView } from '../../components/ThemedView';
 import { useAuth } from '../../hooks/useAuth';
 import { useLocalSearchParams, Stack, router } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-
+import { config } from '../../config';
 // Define interfaces for data types
 interface Space {
   _id: string;
@@ -65,7 +65,7 @@ export default function SpaceDetailsScreen() {
   const [spacePatients, setSpacePatients] = useState<Patient[]>([]);
   const [allPatients, setAllPatients] = useState<Patient[]>([]);
   
-  const API_BASE_URL = 'https://2595-2603-8000-ba00-2aae-19d0-bb4a-f0eb-4b8f.ngrok-free.app';
+  const API_BASE_URL = config.backendApiUrl;
   
   // Fetch all patients and filter based on provided space data
   const fetchPatients = useCallback(async (spaceData?: Space) => {

@@ -6,6 +6,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../../hooks/useAuth';
+import { config } from '../../config';
 
 export default function CaptureScreen() {
   const { spaceId, spaceName } = useLocalSearchParams();
@@ -13,7 +14,7 @@ export default function CaptureScreen() {
   const [image, setImage] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   
-  const API_BASE_URL = 'https://2595-2603-8000-ba00-2aae-19d0-bb4a-f0eb-4b8f.ngrok-free.app';
+  const API_BASE_URL = config.backendApiUrl;
   
   const pickImageFromGallery = async () => {
     // Request permission
