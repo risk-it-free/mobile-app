@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../hooks/useAuth';
 import { ThemedView } from '../../components/ThemedView';
@@ -44,6 +44,11 @@ export default function LoginScreen() {
         style={styles.formContainer}
       >
         <View style={styles.headerContainer}>
+          <Image 
+            source={require('../../assets/images/app-logo.png')}
+            style={styles.logo}
+            resizeMode="contain"
+          />
           <ThemedText style={styles.title}>Risk-It-Free</ThemedText>
           <ThemedText style={styles.subtitle}>Login to your account</ThemedText>
         </View>
@@ -104,6 +109,11 @@ const styles = StyleSheet.create({
     marginBottom: 40,
     alignItems: 'center',
   },
+  logo: {
+    width: 100,
+    height: 100,
+    marginBottom: 20,
+  },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
@@ -121,7 +131,7 @@ const styles = StyleSheet.create({
   },
   input: {
     height: 50,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: '#f9f9f9',
     borderRadius: 8,
     marginBottom: 15,
     paddingHorizontal: 15,

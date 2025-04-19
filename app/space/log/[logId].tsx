@@ -104,7 +104,7 @@ export default function LogDetailScreen() {
     // let summary = `Safety assessment from ${formatDate(log.created_at)}. `;
     
     // Add safety score
-    let summary = `The safety score is ${Math.round(log.score)} out of 100. `;
+    let summary = `The safety score is ${Math.round(log.score)} out of 100, where higher scores mean better safety. `;
     
     // Add safety assessment
     if (log.score >= 80) {
@@ -390,11 +390,28 @@ export default function LogDetailScreen() {
         
         <View style={[styles.scoreCard, { backgroundColor: getSafetyColor(log.score) + '20' }]}>
           <View style={styles.scoreHeader}>
-            <ThemedText style={styles.scoreTitle}>Safety Score</ThemedText>
+            <View style={styles.scoreTitleContainer}>
+              <ThemedText style={styles.scoreTitle}>Safety Score</ThemedText>
+              <ThemedText style={styles.scoreScale}>(Higher is safer)</ThemedText>
+            </View>
             <View style={[styles.scoreBadge, { backgroundColor: getSafetyColor(log.score) }]}>
               <ThemedText style={styles.scoreText}>{Math.round(log.score)}</ThemedText>
             </View>
           </View>
+
+          <View style={styles.scoreRangeContainer}>
+            <View style={styles.scoreRangeBar}>
+              <View style={[styles.scoreRangeFill, { width: `${log.score}%`, backgroundColor: getSafetyColor(log.score) }]} />
+            </View>
+            <View style={styles.scoreRangeLabels}>
+              <ThemedText style={styles.scoreRangeLabel}>0</ThemedText>
+              <ThemedText style={[styles.scoreRangeLabel, styles.scoreRangeLabelBold]}>
+                {log.score >= 80 ? 'Safe' : log.score >= 60 ? 'Caution' : 'Unsafe'}
+              </ThemedText>
+              <ThemedText style={styles.scoreRangeLabel}>100</ThemedText>
+            </View>
+          </View>
+          
           <ThemedText style={styles.scoreDescription}>
             {log.score >= 80 ? 'This space is generally safe with minimal hazards.' : 
              log.score >= 60 ? 'This space has some safety concerns that should be addressed.' :
@@ -599,9 +616,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
+  scoreTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   scoreTitle: {
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  scoreScale: {
+    fontSize: 12,
+    color: '#666',
+    marginLeft: 4,
   },
   scoreBadge: {
     width: 40,
@@ -614,6 +640,31 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: 'bold',
     fontSize: 18,
+  },
+  scoreRangeContainer: {
+    marginBottom: 16,
+  },
+  scoreRangeBar: {
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#F5F5F5',
+  },
+  scoreRangeFill: {
+    height: '100%',
+    borderRadius: 10,
+  },
+  scoreRangeLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  scoreRangeLabel: {
+    fontSize: 12,
+    color: '#666',
+  },
+  scoreRangeLabelBold: {
+    fontWeight: 'bold',
   },
   scoreDescription: {
     fontSize: 14,

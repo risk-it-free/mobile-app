@@ -363,6 +363,22 @@ export default function SpaceDetailsScreen() {
           </TouchableOpacity>
         </View>
         
+        <View style={styles.scoreLegend}>
+          <ThemedText style={styles.scoreLegendText}>Safety Score: </ThemedText>
+          <View style={styles.scoreLegendItem}>
+            <View style={[styles.scoreLegendDot, { backgroundColor: '#4CAF50' }]} />
+            <ThemedText style={styles.scoreLegendItemText}>80-100 (Safe)</ThemedText>
+          </View>
+          <View style={styles.scoreLegendItem}>
+            <View style={[styles.scoreLegendDot, { backgroundColor: '#FF9800' }]} />
+            <ThemedText style={styles.scoreLegendItemText}>60-79 (Caution)</ThemedText>
+          </View>
+          <View style={styles.scoreLegendItem}>
+            <View style={[styles.scoreLegendDot, { backgroundColor: '#F44336' }]} />
+            <ThemedText style={styles.scoreLegendItemText}>0-59 (Unsafe)</ThemedText>
+          </View>
+        </View>
+        
         {logs.length === 0 ? (
           <View style={styles.emptyState}>
             <MaterialIcons name="search-off" size={60} color="#CCCCCC" />
@@ -388,8 +404,16 @@ export default function SpaceDetailsScreen() {
                   <MaterialIcons name="event" size={16} color="#666666" />
                   <ThemedText style={styles.logDate}>{formatDate(log.created_at)}</ThemedText>
                 </View>
-                <View style={[styles.scoreBadge, { backgroundColor: getSafetyColor(log.score) }]}>
-                  <ThemedText style={styles.scoreText}>{Math.round(log.score)}</ThemedText>
+                <View style={styles.scoreContainer}>
+                  <View style={styles.scoreLabel}>
+                    <MaterialIcons name="verified" size={16} color={getSafetyColor(log.score)} />
+                    <ThemedText style={[styles.scoreHint, {color: getSafetyColor(log.score)}]}>
+                      {log.score >= 80 ? 'Safe' : log.score >= 60 ? 'Caution' : 'Unsafe'}
+                    </ThemedText>
+                  </View>
+                  <View style={[styles.scoreBadge, { backgroundColor: getSafetyColor(log.score) }]}>
+                    <ThemedText style={styles.scoreText}>{Math.round(log.score)}</ThemedText>
+                  </View>
                 </View>
               </View>
               
@@ -698,6 +722,20 @@ const styles = StyleSheet.create({
     color: '#666',
     marginLeft: 6,
   },
+  scoreContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  scoreLabel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  scoreHint: {
+    fontSize: 12,
+    marginLeft: 4,
+    fontWeight: 'bold',
+  },
   scoreBadge: {
     width: 36,
     height: 36,
@@ -945,6 +983,37 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  scoreLegend: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    marginBottom: 16,
+    padding: 10,
+    backgroundColor: '#F9F9F9',
+    borderRadius: 8,
+  },
+  scoreLegendText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    marginRight: 6,
+  },
+  scoreLegendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 10,
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  scoreLegendDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: 4,
+  },
+  scoreLegendItemText: {
+    fontSize: 12,
+    color: '#666',
   },
 });
 

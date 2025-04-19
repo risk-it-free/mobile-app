@@ -7,6 +7,8 @@ import { useAuth } from '../../hooks/useAuth';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router } from 'expo-router';
 import { config } from '../../config';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import AppWalkthrough from '../../components/AppWalkthrough';
 
 // Define interface for Space
 interface Space {
@@ -38,8 +40,27 @@ export default function HomeScreen() {
   const [patientAge, setPatientAge] = useState('');
   const [medicalHistory, setMedicalHistory] = useState('');
   const [patientRelationship, setPatientRelationship] = useState('');
+  const [showWalkthrough, setShowWalkthrough] = useState(true);
   
   const API_BASE_URL = config.backendApiUrl;
+  
+  // Check if the walkthrough has been completed before
+  useEffect(() => {
+    const checkWalkthroughStatus = async () => {
+      try {
+        const walkthroughCompleted = await AsyncStorage.getItem('safespace_walkthrough_completed');
+        if (walkthroughCompleted !== 'true') {
+          setShowWalkthrough(true);
+        }
+      } catch (error) {
+        console.error('Error checking walkthrough status:', error);
+        // If there's an error, show walkthrough by default
+        setShowWalkthrough(true);
+      }
+    };
+
+    checkWalkthroughStatus();
+  }, []);
   
   // Fetch spaces from API
   const fetchSpaces = async () => {
@@ -234,6 +255,12 @@ export default function HomeScreen() {
     <ThemedView style={styles.container}>
       <StatusBar style="auto" />
       
+      {/* Walkthrough component */}
+      <AppWalkthrough 
+        visible={showWalkthrough} 
+        onClose={() => setShowWalkthrough(false)} 
+      />
+      
       <View style={styles.header}>
         <View>
           <ThemedText style={styles.greetingText}>{greeting()}</ThemedText>
@@ -253,7 +280,7 @@ export default function HomeScreen() {
           <View style={styles.introTextContainer}>
             <ThemedText style={styles.introTitle}>SafeSpace</ThemedText>
             <ThemedText style={styles.introDescription}>
-              Helping you identify and avoid hazards in your living spaces. Upload images of your rooms and get safety assessments to prevent falls and accidents.
+              Helping you identify and avoid hazards in your living spaces. Upload images of your rooms and get safety assessments to prevent falls and accidents and protect your loved ones.
             </ThemedText>
           </View>
           <View style={styles.introIconContainer}>
