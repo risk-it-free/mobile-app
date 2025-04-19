@@ -23,6 +23,7 @@ interface Patient {
   patient_condition: string;
   patient_age: number;
   medical_history?: string;
+  patient_relationship?: string;
 }
 
 export default function HomeScreen() {
@@ -36,6 +37,7 @@ export default function HomeScreen() {
   const [patientCondition, setPatientCondition] = useState('');
   const [patientAge, setPatientAge] = useState('');
   const [medicalHistory, setMedicalHistory] = useState('');
+  const [patientRelationship, setPatientRelationship] = useState('');
   
   const API_BASE_URL = config.backendApiUrl;
   
@@ -121,6 +123,7 @@ export default function HomeScreen() {
     setCurrentPatient(null);
     setPatientName('');
     setPatientCondition('');
+    setPatientRelationship('');
     setPatientAge('');
     setMedicalHistory('');
     setIsPatientModalVisible(true);
@@ -130,6 +133,7 @@ export default function HomeScreen() {
     setCurrentPatient(patient);
     setPatientName(patient.patient_name);
     setPatientCondition(patient.patient_condition);
+    setPatientRelationship(patient.patient_relationship || '');
     setPatientAge(patient.patient_age.toString());
     setMedicalHistory(patient.medical_history || '');
     setIsPatientModalVisible(true);
@@ -184,7 +188,8 @@ export default function HomeScreen() {
         patient_name: patientName.trim(),
         patient_condition: patientCondition.trim(),
         patient_age: parseInt(patientAge),
-        medical_history: medicalHistory.trim() || undefined
+        medical_history: medicalHistory.trim() || undefined,
+        patient_relationship: patientRelationship.trim() || undefined
       };
 
       let response;
@@ -389,6 +394,17 @@ export default function HomeScreen() {
                   value={patientCondition}
                   onChangeText={setPatientCondition}
                   placeholder="Enter patient condition"
+                  placeholderTextColor="#999"
+                />
+              </View>
+
+              <View style={styles.inputContainer}>
+                <ThemedText style={styles.inputLabel}>Relationship*</ThemedText>
+                <TextInput
+                  style={styles.input}
+                  value={patientRelationship}
+                  onChangeText={setPatientRelationship}
+                  placeholder="Enter patient relationship"
                   placeholderTextColor="#999"
                 />
               </View>

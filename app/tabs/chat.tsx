@@ -1,87 +1,192 @@
-import React from 'react';
-import { View, StyleSheet, FlatList } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, StyleSheet, ActivityIndicator } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { GiftedChat, IMessage, Send } from 'react-native-gifted-chat';
 import { ThemedView } from '../../components/ThemedView';
 import { ThemedText } from '../../components/ThemedText';
 import { useAuth } from '../../hooks/useAuth';
-
-// Define the chat item type
-interface ChatItem {
-  id: string;
-  name: string;
-  lastMessage: string;
-  time: string;
-}
-
-// Mock chat data - replace with actual chat data from API
-const mockChats: ChatItem[] = [
-  {
-    id: '1',
-    name: 'Dr. Smith',
-    lastMessage: 'How are you feeling today?',
-    time: '10:30 AM',
-  },
-  {
-    id: '2',
-    name: 'Nurse Johnson',
-    lastMessage: 'Remember to take your medication at noon',
-    time: 'Yesterday',
-  },
-  {
-    id: '3',
-    name: 'Dr. Williams',
-    lastMessage: 'Your test results look good!',
-    time: 'Monday',
-  },
-  {
-    id: '4',
-    name: 'Caregiver Support',
-    lastMessage: 'Is there anything you need help with?',
-    time: 'Tuesday',
-  },
-];
-
+import { config } from '../../config';
+import * as SecureStore from 'expo-secure-store';
 export default function ChatScreen() {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
+  const [userData, setUserData] = useState<any>(null);
+  const [messages, setMessages] = useState<IMessage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [messageHistory, setMessageHistory] = useState<any>([]);
 
-  const renderChatItem = ({ item }: { item: ChatItem }) => (
-    <View style={styles.chatItem}>
-      <View style={styles.avatar}>
-        <ThemedText style={styles.avatarText}>{item.name.charAt(0)}</ThemedText>
-      </View>
-      <View style={styles.chatInfo}>
-        <View style={styles.chatHeader}>
-          <ThemedText style={styles.chatName}>{item.name}</ThemedText>
-          <ThemedText style={styles.chatTime}>{item.time}</ThemedText>
+  const API_BASE_URL = config.backendApiUrl;
+
+
+  useEffect(() => {
+    // Check for existing token on startup
+    const loadToken = async () => {
+      try {
+        const storedUser = await SecureStore.getItemAsync('userData');
+        
+        if (storedUser) {
+          setUserData(JSON.parse(storedUser));
+        }
+      } catch (error) {
+        console.error('Failed to load auth token', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadToken();
+  }, []);
+
+  useEffect(() => {
+    // Initialize with a welcome message
+    setMessages([
+      {
+        _id: 1,
+        text: 'Hello! How can I assist you today?',
+        createdAt: new Date(),
+        user: {
+          _id: 'agent',
+          name: 'AI Assistant',
+          avatar: 'https://placehold.co/100x100/blue/white?text=AI',
+        },
+      },
+    ]);
+  }, []);
+
+  const onSend = useCallback(async (newMessages: IMessage[] = []) => {
+    // First, update UI with the user's message
+    setMessages(previousMessages =>
+      GiftedChat.append(previousMessages, newMessages),
+    );
+
+    // Then, send the message to the API and get a response
+    try {
+      setLoading(true);
+      
+      // Get the text from the last message
+      const userMessage = newMessages[0].text;
+      
+      // Make the API call
+      console.log('HISTORY: ', messageHistory);
+      let queryMessage: any = {
+        query: userMessage,
+        user_id: userData?.id,
+        history: messageHistory,
+      };
+      if (messageHistory.length == 0) {
+        queryMessage.history = [];
+      }
+      console.log('QUERY MESSAGE: ', JSON.stringify(queryMessage));
+      console.log('userMessage', JSON.stringify({
+        query: userMessage,
+        user_id: userData?.id,
+        history: messageHistory,
+      }));
+      const response = await fetch(`${API_BASE_URL}/simple_agent/simple_conversation`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : '',
+        },
+        body: JSON.stringify({
+          query: userMessage,
+          user_id: userData?.id,
+          history: messageHistory,
+        })
+      });
+
+      const data = await response.json();
+
+      // Add the agent's response to the messages
+      if (response.ok && data.response) {
+        setMessageHistory(data.history);
+        const agentMessage: IMessage = {
+          _id: Math.random().toString(),
+          text: data.response,
+          createdAt: new Date(),
+          user: {
+            _id: 'agent',
+            name: 'AI Assistant',
+            avatar: 'https://placehold.co/100x100/blue/white?text=AI',
+          },
+        };
+
+        setMessages(previousMessages =>
+          GiftedChat.append(previousMessages, [agentMessage]),
+        );
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      // Add an error message
+      const errorMessage: IMessage = {
+        _id: Math.random().toString(),
+        text: 'Sorry, there was an error processing your request. Please try again.',
+        createdAt: new Date(),
+        user: {
+          _id: 'agent',
+          name: 'AI Assistant',
+          avatar: 'https://placehold.co/100x100/blue/white?text=AI',
+        },
+      };
+
+      setMessages(previousMessages =>
+        GiftedChat.append(previousMessages, [errorMessage]),
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [messages, user, token, API_BASE_URL]);
+
+  // Custom render for the Send button
+  const renderSend = (props: any) => {
+    return (
+      <Send {...props} containerStyle={styles.sendContainer}>
+        <View style={styles.sendButton}>
+          <ThemedText style={styles.sendButtonText}>Send</ThemedText>
         </View>
-        <ThemedText style={styles.chatMessage} numberOfLines={1}>
-          {item.lastMessage}
-        </ThemedText>
-      </View>
-    </View>
-  );
+      </Send>
+    );
+  };
+
+  // Custom render for loading indicator
+  const renderFooter = () => {
+    if (loading) {
+      return (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="small" color="#007AFF" />
+        </View>
+      );
+    }
+    return null;
+  };
 
   return (
     <ThemedView style={styles.container}>
       <StatusBar style="auto" />
-
+      
       <View style={styles.header}>
-        <ThemedText style={styles.headerTitle}>Messages</ThemedText>
+        <ThemedText style={styles.headerTitle}>AI Assistant</ThemedText>
       </View>
 
-      {mockChats.length > 0 ? (
-        <FlatList
-          data={mockChats}
-          renderItem={renderChatItem}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContainer}
-          showsVerticalScrollIndicator={false}
-        />
-      ) : (
-        <View style={styles.emptyContainer}>
-          <ThemedText style={styles.emptyText}>No messages yet</ThemedText>
-        </View>
-      )}
+      <GiftedChat
+        messages={messages}
+        onSend={onSend}
+        user={{
+          _id: user?.id || '1', // Use the authenticated user's ID or a default
+          name: user ? `${user.firstName} ${user.lastName}` : 'You', // Using firstName and lastName from the User interface
+        }}
+        renderSend={renderSend}
+        renderFooter={renderFooter}
+        listViewProps={{
+          scrollEnabled: true,
+          keyboardShouldPersistTaps: "handled"
+        }}
+        keyboardShouldPersistTaps="handled"
+        messagesContainerStyle={styles.messagesContainer}
+        renderUsernameOnMessage
+        alwaysShowSend
+        scrollToBottom
+        inverted={true}
+      />
     </ThemedView>
   );
 }
@@ -89,68 +194,36 @@ export default function ChatScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 20,
     paddingTop: 60,
   },
   header: {
-    marginBottom: 20,
+    paddingHorizontal: 20,
+    marginBottom: 10,
   },
   headerTitle: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
   },
-  listContainer: {
-    paddingBottom: 20,
-  },
-  chatItem: {
-    flexDirection: 'row',
-    padding: 15,
-    borderRadius: 12,
-    marginBottom: 10,
-    backgroundColor: '#f5f5f5',
-  },
-  avatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#007AFF',
+  sendContainer: {
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 15,
-  },
-  avatarText: {
-    color: 'white',
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  chatInfo: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  chatHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    marginRight: 10,
     marginBottom: 5,
   },
-  chatName: {
+  sendButton: {
+    backgroundColor: '#007AFF',
+    borderRadius: 20,
+    padding: 10,
+  },
+  sendButtonText: {
+    color: 'white',
     fontWeight: 'bold',
-    fontSize: 16,
   },
-  chatTime: {
-    fontSize: 12,
-    color: '#888',
-  },
-  chatMessage: {
-    fontSize: 14,
-    color: '#666',
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
+  loadingContainer: {
+    padding: 10,
     alignItems: 'center',
   },
-  emptyText: {
-    fontSize: 18,
-    color: '#888',
+  messagesContainer: {
+    // Add any necessary styles for the messages container
   },
 }); 

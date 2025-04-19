@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, ScrollView, TouchableOpacity, Alert, Image, ActivityIndicator, Animated, ToastAndroid, Platform } from 'react-native';
+import { StyleSheet, View, ScrollView, TouchableOpacity, Alert, Image, ActivityIndicator, Animated, ToastAndroid, Platform, Modal } from 'react-native';
 import { ThemedText } from '../../../components/ThemedText';
 import { ThemedView } from '../../../components/ThemedView';
 import { useAuth } from '../../../hooks/useAuth';
@@ -7,6 +7,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { config } from '../../../config';
 import * as Speech from 'expo-speech';
+import ImageViewer from 'react-native-image-zoom-viewer';
 
 // Define interface for SpaceLog
 interface SpaceLog {
@@ -42,6 +43,7 @@ export default function LogDetailScreen() {
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const toastTimeout = React.useRef<NodeJS.Timeout | null>(null);
+  const [imageViewerVisible, setImageViewerVisible] = useState(false);
   
   const API_BASE_URL = config.backendApiUrl;
   
@@ -346,12 +348,44 @@ export default function LogDetailScreen() {
           </View>
         </View>
         
-        {log.image_data && (
-          <Image 
-            source={{ uri: log.image_bb }}
-            style={styles.image}
-            resizeMode="cover"
-          />
+        {log.image_bb && (
+          <>
+            <TouchableOpacity 
+              activeOpacity={0.9}
+              onPress={() => setImageViewerVisible(true)}
+              accessibilityLabel="Safety assessment image, tap to zoom"
+              accessibilityHint="Opens a fullscreen view where you can zoom and pan the image"
+            >
+              <Image 
+                source={{ uri: log.image_bb }}
+                style={styles.image}
+                resizeMode="cover"
+              />
+              <View style={styles.zoomHintContainer}>
+                <MaterialIcons name="zoom-in" size={20} color="#FFFFFF" />
+                <ThemedText style={styles.zoomHintText}>Tap to zoom</ThemedText>
+              </View>
+            </TouchableOpacity>
+
+            <Modal visible={imageViewerVisible} transparent={true} onRequestClose={() => setImageViewerVisible(false)}>
+              <ImageViewer
+                imageUrls={[{ url: log.image_bb }]}
+                enableSwipeDown={true}
+                onSwipeDown={() => setImageViewerVisible(false)}
+                onClick={() => setImageViewerVisible(false)}
+                // renderIndicator={() => null}
+                backgroundColor="rgba(0, 0, 0, 0.9)"
+                renderHeader={() => (
+                  <TouchableOpacity 
+                    style={styles.closeButton}
+                    onPress={() => setImageViewerVisible(false)}
+                  >
+                    <MaterialIcons name="close" size={24} color="#FFFFFF" />
+                  </TouchableOpacity>
+                )}
+              />
+            </Modal>
+          </>
         )}
         
         <View style={[styles.scoreCard, { backgroundColor: getSafetyColor(log.score) + '20' }]}>
@@ -677,6 +711,34 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 14,
     textAlign: 'center',
+  },
+  zoomHintContainer: {
+    position: 'absolute',
+    bottom: 24,
+    right: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  zoomHintText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    marginLeft: 4,
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 40,
+    right: 20,
+    zIndex: 10,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: 20,
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 
